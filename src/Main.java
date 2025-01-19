@@ -1,17 +1,26 @@
 import java.util.*;
+import java.util.concurrent.*;
 
 public class Main {
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws InterruptedException, ExecutionException {
+
+        Runtime runtime = Runtime.getRuntime();
+
+        int availableProcessors = runtime.availableProcessors();
+
+        final ExecutorService threadPool = Executors.newFixedThreadPool(availableProcessors);
+
+        List<Future<Integer>> futures = new ArrayList<>();
+
         String[] texts = new String[25];
         for (int i = 0; i < texts.length; i++) {
             texts[i] = generateText("aab", 30_000);
         }
 
         long startTs = System.currentTimeMillis(); // start time
-        List<Thread> threads = new ArrayList<>();
 
         for (String text : texts) {
-            Thread thread = new Thread(() -> {
+            Future<Integer> future = threadPool.submit(() -> {
                 int maxSize = 0;
                 for (int i = 0; i < text.length(); i++) {
                     for (int j = 0; j < text.length(); j++) {
@@ -31,17 +40,25 @@ public class Main {
                     }
                 }
                 System.out.println(text.substring(0, 100) + " -> " + maxSize);
+                return maxSize;
             });
-            threads.add(thread);
-            thread.start();
+            futures.add(future);
         }
 
-        for (Thread thread : threads) {
-            thread.join();
+        int globalMaxSize = 0;
+        for (Future<Integer> future : futures) {
+            int localMaxSize = future.get();
+            if (localMaxSize > globalMaxSize) {
+                globalMaxSize = localMaxSize;
+            }
+
         }
+
+        threadPool.shutdown();
 
         long endTs = System.currentTimeMillis(); // end time
         System.out.println("Time: " + (endTs - startTs) + "ms");
+        System.out.println("Максимальный интервал: " + globalMaxSize);
     }
 
     public static String generateText(String letters, int length) {
